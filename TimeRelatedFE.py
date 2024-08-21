@@ -458,8 +458,11 @@ if __name__ == "__main__":
                  'data/online_retail_II.csv', 'data/retail_opti.csv' , 'data/Yellow_Taxi.csv', 'data/RidesChicago.csv' 
                  'data/SeoulBikeData.csv', 'data/seattle-weather.csv', 'data/austin_weather.csv', 
                  'data/london_weather.csv', 'data/CarSales.csv', 'data/supermarket_sales.csv', 'data/Employee.csv' ]
+    
+    your_csv_files = []
+    
     n_jobs = 8
-
+    #for flag, csv_file_path in enumerate(your_csv_files, start=1):
     for flag, csv_file_path in enumerate(csv_files, start=1):
         df = pd.read_csv(csv_file_path).dropna() 
         df = df.sample(frac=0.8, random_state=11)
@@ -468,6 +471,15 @@ if __name__ == "__main__":
 
         print("### Processing CSV File {} ###".format(flag))
         print(csv_file_path)
+        '''
+        your flags here:
+        if flag == 1: 
+            label = data[[your_target]]
+            del data[your_target]
+        ...
+        
+        '''
+        ### remove this below
         if flag == 2: #war 1
             label = data[['Gender']]
             del data['Gender']
@@ -552,7 +564,7 @@ if __name__ == "__main__":
             data = df.copy()
             label = data[['LeaveOrNot']]
             del data['LeaveOrNot']
-
+        ### remove this above
         df_old = df.copy()
         del df_old[label.columns[0]] 
         del df_old['TimeFE_ID']
@@ -609,7 +621,6 @@ if __name__ == "__main__":
         else:
             cols = 'same'
             print("Number of rows is the same (:")
-        #print(df.columns.tolist())
         pruned_new_df['TimeFE_ID'] = range(1, len(pruned_new_df) + 1)
         df_time['TimeFE_ID'] = range(1, len(df_time) + 1)
         print("#################")
