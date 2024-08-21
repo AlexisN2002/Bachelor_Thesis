@@ -79,17 +79,6 @@ def TimeRelatedFe(df, holiday_countries=['us'], date_format='%Y-%m-%d %H:%M:%S')
     time_increasing = detect_time_increasing(df)
     print("Time Increasing Features:", time_increasing)
     
-    '''def is_datetime_column(column):
-            if pd.api.types.is_datetime64_any_dtype(column):
-                return True
-            if pd.api.types.is_object_dtype(column):
-                try:
-                    converted = pd.to_datetime(column, format=date_format, errors='raise')
-                    return pd.api.types.is_datetime64_any_dtype(converted)
-                except (ValueError, TypeError):
-                    return False
-            return False
-    '''
     def is_datetime_column(column):
         formats = [
             '%Y-%m-%d %H:%M:%S',
@@ -149,21 +138,6 @@ def TimeRelatedFe(df, holiday_countries=['us'], date_format='%Y-%m-%d %H:%M:%S')
                 
                 df[f'{column}_$_days_to_nearest_holiday'] = df[column].apply(days_to_nearest_holiday)
 
-                #new 
-                '''def check_date_within_range(date, holiday_list, days_range):
-                    from datetime import timedelta
-                    start_date = date + timedelta(days=days_range)
-                    # Define the end of the range
-                    if days_range >= 0:
-                        end_date = date + timedelta(days=0)  # Checking up to the reference date
-                    else:
-                        end_date = date + timedelta(days=0)  # Checking up to the reference date
-                    
-                    # Check each date in the range
-                    for single_date in pd.date_range(start=start_date, end=end_date):
-                        if single_date.date() in holiday_list:
-                            return True
-                    return False'''
                 def check_date_within_range(date, holiday_list, days_range):
                     from datetime import timedelta
                     if pd.isna(date):
@@ -305,21 +279,12 @@ def compare_dataframes(df1, df2):
 
 
 # write your scorers here #
-'''
-def rmsle(y_true, y_pred):
-
-    assert len(y_true) == len(y_pred), "Lengths of y_true and y_pred must be the same."
-    y_true = np.log1p(y_true)
-    y_pred = np.log1p(y_pred)
-    return np.sqrt(np.mean((y_true - y_pred)**2))
-'''
 
 def rmsle(y_true, y_pred):
     """Calculate the Root Mean Squared Logarithmic Error."""
     y_true = np.maximum(0, y_true) + 1
     y_pred = np.maximum(0, y_pred) + 1
     return np.sqrt(mean_squared_log_error(y_true, y_pred))
-
 
 # write your scorers here #
 
@@ -333,7 +298,6 @@ def cross_validated_scores(df_old, df_time, label, n_jobs, params, task_type):
     elif task_type == 'RMSLE':
         gbm = lgb.LGBMRegressor(**params)
         scoring = make_scorer(rmsle, greater_is_better=False) 
-    # new
     train_x, val_x, train_y, val_y = train_test_split(df_old, label, test_size=0.2, random_state=1)
     gbm.fit(train_x, train_y, eval_set=[(val_x, val_y)])
     cv_scores_old = cross_val_score(gbm, df_old, label, cv=10, scoring=scoring, n_jobs=n_jobs)
@@ -341,10 +305,6 @@ def cross_validated_scores(df_old, df_time, label, n_jobs, params, task_type):
     train_x, val_x, train_y, val_y = train_test_split(df_time, label, test_size=0.2, random_state=1)
     gbm.fit(train_x, train_y, eval_set=[(val_x, val_y)])
     cv_scores_time = cross_val_score(gbm, df_time, label, cv=10, scoring=scoring, n_jobs=n_jobs)
-    # old
-    #cv_scores_old = cross_val_score(gbm, df_old, label, cv=10, scoring=scoring, n_jobs=n_jobs)
-    #cv_scores_time = cross_val_score(gbm, df_time, label, cv=10, scoring=scoring, n_jobs=n_jobs)
-    
     if task_type in ['regression', 'RMSLE']:
         score_old = -cv_scores_old.mean()  # Convert to positive RMSE
         score_time = -cv_scores_time.mean()  # Convert to positive RMSE
@@ -365,12 +325,8 @@ def cross_validated_feature_importances(df, label, n_jobs, params, task_type):
     elif task_type == 'RMSLE':
         gbm = lgb.LGBMRegressor(**params)
         scoring = make_scorer(rmsle, greater_is_better=False) 
-    # new
-    #train_x, val_x, train_y, val_y = train_test_split(df, label, test_size=0.2, random_state=1)
-    #gbm.fit(train_x, train_y, eval_set=[(val_x, val_y)])
-    #cv_scores_old = cross_val_score(gbm, df, label, cv=10, scoring=scoring, n_jobs=n_jobs)
     if label.columns[0] in df.columns:
-        df_copy = df#[label.columns[0]].copy()
+        df_copy = df
         del df_copy[label.columns[0]]
     else:
         df_copy = df.copy()
@@ -382,7 +338,7 @@ def cross_validated_feature_importances(df, label, n_jobs, params, task_type):
     for train_idx, val_idx in kf.split(df_copy):
         train_x, val_x = df_copy.iloc[train_idx], df_copy.iloc[val_idx]
         train_y, val_y = label.iloc[train_idx], label.iloc[val_idx]
-        #gbm.fit(train_x, train_y)
+    
         gbm.fit(train_x, train_y, eval_set=[(val_x, val_y)])
         fold_importances = pd.DataFrame({'feature': df_copy.columns, 'importance': gbm.feature_importances_})
         feature_importances = feature_importances.merge(fold_importances, on='feature', how='left', suffixes=(None, '_fold'))
@@ -487,83 +443,6 @@ def prune(old_df, new_df, feature_importances, take_best):
     
     return pruned_new_df, selected_features
 
-'''def compare_feature_importances(feature_importances_old, feature_importances_new, df_old, df_new, feature_comparison_file, transformation_summary_file):
-    # Ensure the feature names are consistent with the column names in the dataframes
-    old_features = df_old.columns
-    new_features = df_new.columns
-
-    # Extract the suffixes used for transformations
-    suffixes = set(col.split('__', 1)[-1] for col in new_features if '__' in col)
-    
-    transformation_performance = {}
-    feature_comparison = []
-
-    for old_feature in old_features:
-        if old_feature not in feature_importances_old['feature'].values:
-            continue
-
-        old_importance = feature_importances_old.loc[feature_importances_old['feature'] == old_feature, 'importance'].values[0]
-        generated_features = [f for f in new_features if f.startswith(old_feature + '__')]
-
-        for new_feature in generated_features:
-            new_importance = feature_importances_new.loc[feature_importances_new['feature'] == new_feature, 'importance'].values[0]
-            improvement = ((new_importance - old_importance) / old_importance) * 100
-
-            feature_comparison.append({
-                'old_feature': old_feature,
-                'new_feature': new_feature,
-                'old_importance': old_importance,
-                'new_importance': new_importance,
-                'improvement (%)': improvement
-            })
-
-            suffix = new_feature.split('_$_', 1)[-1]
-            if suffix not in transformation_performance:
-                transformation_performance[suffix] = []
-            transformation_performance[suffix].append(improvement)
-
-    # Handle special case for date differences
-    date_diff_features = [f for f in new_features if '__' in f and '_vs_' in f and '_timedelta' in f]
-    
-    for new_feature in date_diff_features:
-        parts = new_feature.split('_$_', 1)[-1].rsplit('_', 1)[0].split('_vs_')
-        if len(parts) == 2 and all(part in old_features for part in parts):
-            col1, col2 = parts
-            old_importance_col1 = feature_importances_old.loc[feature_importances_old['feature'] == col1, 'importance'].values[0]
-            old_importance_col2 = feature_importances_old.loc[feature_importances_old['feature'] == col2, 'importance'].values[0]
-            avg_old_importance = (old_importance_col1 + old_importance_col2) / 2
-
-            new_importance = feature_importances_new.loc[feature_importances_new['feature'] == new_feature, 'importance'].values[0]
-            improvement = ((new_importance - avg_old_importance) / avg_old_importance) * 100
-
-            feature_comparison.append({
-                'old_feature': f'{col1}_vs_{col2}',
-                'new_feature': new_feature,
-                'old_importance': avg_old_importance,
-                'new_importance': new_importance,
-                'improvement (%)': improvement
-            })
-
-            suffix = 'timedelta'
-            if suffix not in transformation_performance:
-                transformation_performance[suffix] = []
-            transformation_performance[suffix].append(improvement)
-
-    # Calculate average improvement for each transformation suffix
-    transformation_summary = {suffix: sum(improvements) / len(improvements) for suffix, improvements in transformation_performance.items()}
-
-    # Convert to DataFrames
-    feature_comparison_df = pd.DataFrame(feature_comparison)
-    transformation_summary_df = pd.DataFrame.from_dict(transformation_summary, orient='index', columns=['average_improvement (%)'])
-
-    # Save the DataFrames to CSV files
-    feature_comparison_df.to_csv(feature_comparison_file, index=False)
-    transformation_summary_df.to_csv(transformation_summary_file, index=True)
-
-    return feature_comparison_df, transformation_summary_df
-'''
-
-
 if __name__ == "__main__":
     import pandas as pd
 
@@ -574,23 +453,15 @@ if __name__ == "__main__":
             file.write("Cross-validated feature importances before/after feature generation:\n")
             file.write(sorted_feature_importances.to_string())
 
-    #csv_files = ['data/NYC-BikeShare-2015-2017-combined.csv', 'data/NYC-Taxi.csv', 'data/retail_sales_dataset.csv']
     csv_files = [ 'data/NYC-Taxi.csv', 'data/NYC-BikeShare-2015-2017-combined.csv','data/retail_sales_dataset.csv', 
                  'data/NYCTraffic.csv', 'data/TravelTrip.csv', 'data/ChicagoTaxi.csv', 'data/retail_sales_dataset.csv', 
-                 'data/online_retail_II.csv', 'data/retail_opti.csv' , 'data/Yellow_Taxi.csv', 'data/RidesChicago.csv' #swapped rided/yellow
+                 'data/online_retail_II.csv', 'data/retail_opti.csv' , 'data/Yellow_Taxi.csv', 'data/RidesChicago.csv' 
                  'data/SeoulBikeData.csv', 'data/seattle-weather.csv', 'data/austin_weather.csv', 
-                 'data/london_weather.csv', 'data/CarSales.csv', 'data/supermarket_sales.csv', 'data/Employee.csv' ] #rideschicago not found
-    #csv_files = ['data/online_retail_II.csv', 'data/retail_opti.csv'] #'data/ .csv' 
-    csv_files = ['data/austin_weather.csv', 
                  'data/london_weather.csv', 'data/CarSales.csv', 'data/supermarket_sales.csv', 'data/Employee.csv' ]
-    csv_files = ['data/RidesChicago.csv']
-    
-    #csv_files = ['data/TravelTrip.csv','data/NYC-Taxi.csv', 'data/NYC-BikeShare-2015-2017-combined.csv','data/retail_sales_dataset.csv', 
-    #             'data/NYCTraffic.csv', 'data/TravelTrip.csv', 'data/ChicagoTaxi.csv']
     n_jobs = 8
 
-    for flag, csv_file_path in enumerate(csv_files, start=11): #was 1
-        df = pd.read_csv(csv_file_path).dropna() #added later dropna
+    for flag, csv_file_path in enumerate(csv_files, start=1):
+        df = pd.read_csv(csv_file_path).dropna() 
         df = df.sample(frac=0.8, random_state=11)
         df['TimeFE_ID'] = range(1, len(df) + 1)
         data = df.copy()
@@ -626,32 +497,21 @@ if __name__ == "__main__":
             del data['Fare']
         elif flag == 7:
             gender_mapping = {'Male': 1, 'Female': 0}
-            #df['Date'] = pd.to_datetime(df['Date'], format='%m-%d-%Y')
-            #df['New Date']= df['Date'].dt.strftime('%Y-%m-%d %H:%M:%S')
             df['Gender'] = df['Gender'].replace(gender_mapping)
             data = df.copy()
             label = data[['Total_Amount']]
             del data['Total_Amount']
         elif flag == 8: 
-            #df['InvoiceDate'] = pd.to_datetime(df['InvoiceDate'], format='%m/%d/%Y %H:%M')
-            #df['New_InvoiceDate'] = df['InvoiceDate'].dt.strftime('%Y-%m-%d %H:%M:%S')
-            #data = df.copy()
             label = data[['Price']]
             del data['Price']
         elif flag == 9:
             label = data[['lag_price']]
             del data['lag_price']
         elif flag == 10: #yellowtaxi 
-            #df['tpep_pickup_datetime'] = pd.to_datetime(df['tpep_pickup_datetime'], format='%m/%d/%Y %H:%M')
-            #df['New_tpep_pickup_datetime'] = df['tpep_pickup_datetime'].dt.strftime('%Y-%m-%d %H:%M:%S') 
             data = df.copy()
             label = data[['fare_amount']]
             del data['fare_amount']
         elif flag == 11: #rideschicago  
-            #df['tpep_pickup_datetime'] = pd.to_datetime(df['tpep_pickup_datetime'], format='%m/%d/%Y %H:%M')
-            #df['New_tpep_pickup_datetime'] = df['tpep_pickup_datetime'].dt.strftime('%Y-%m-%d %H:%M:%S') 
-            #df['tpep_dropoff_datetime'] = pd.to_datetime(df['tpep_dropoff_datetime'], format='%m/%d/%Y %H:%M')
-            #df['New_tpep_dropoff_datetime'] = df['tpep_dropoff_datetime'].dt.strftime('%Y-%m-%d %H:%M:%S')
             data = df.copy()
             label = data[['fare']]
             del data['fare']
@@ -693,21 +553,12 @@ if __name__ == "__main__":
             label = data[['LeaveOrNot']]
             del data['LeaveOrNot']
 
-
-
-            '''df_old = df.copy()
-            #del df_old['Fare'] label.columns[0]
-            del df_old[label.columns[0]] 
-            del df_old['TimeFE_ID']'''
-
         df_old = df.copy()
         del df_old[label.columns[0]] 
         del df_old['TimeFE_ID']
-        #df_old = df.copy() #moved to elif
         print("Original DataFrame shape:", df_old.shape)
 
-        # Process data
-        df_time = TimeRelatedFe(data) #was df
+        df_time = TimeRelatedFe(data) 
         print("DataFrame after TimeRelatedFe shape:", df_time.shape)
         df_time.to_csv('cleaned_data_flag_{}.csv'.format(flag), index=False)
 
@@ -720,17 +571,11 @@ if __name__ == "__main__":
         print("Common attributes:", common_attributes)
         print("Attributes unique to df1:", unique_attributes_df1)
         print("Attributes unique to df2:", unique_attributes_df2)
-        '''
-        if flag == 2:
-            task_type = 'RMSLE'
-        else:'''
-            #task_type = 'classification' if label.nunique().values[0] == 2 else 'regression' 
         
         task_type = 'classification' if label.nunique().values[0] == 2 else 'regression' 
 
         params = {'n_estimators': 1000, 'n_jobs': n_jobs, 'random_state': 1, 'verbose': 1}
         df_old_save, df_time_save = df_old.copy(), df_time.copy() # new
-        #df_old, df_time = df_old.copy(), df_time.copy()
         score_old, score_time = cross_validated_scores(df_old.copy(), df_time, label, n_jobs, params, task_type)
         
         feature_importances_old_cv = cross_validated_feature_importances(df_old.copy(), label, n_jobs, params, task_type)
@@ -768,9 +613,6 @@ if __name__ == "__main__":
         pruned_new_df['TimeFE_ID'] = range(1, len(pruned_new_df) + 1)
         df_time['TimeFE_ID'] = range(1, len(df_time) + 1)
         print("#################")
-        #df = df.applymap(lambda x: 1 if x is "Male" else (0 if x is "Female" else x))
-        #print(df['Traveler_gender'].head())
-        print("#################")
         pruned_new_df = pd.merge(pruned_new_df.copy(), df[['TimeFE_ID',  label.columns[0]]], on='TimeFE_ID', how='left', suffixes=('_new', '_old')) #was df_old not df
         df_time = pd.merge(df_time, df[['TimeFE_ID',  label.columns[0]]], on='TimeFE_ID', how='left', suffixes=('_new', '_old'))
         for col in df_time.columns:
@@ -789,22 +631,8 @@ if __name__ == "__main__":
         feature_importances_pruned_cv = cross_validated_feature_importances(pruned_new_df, label, n_jobs, params, task_type)
         score_prune, score_prune = cross_validated_scores(pruned_new_df, pruned_new_df, label, n_jobs, params, task_type)
         save_feature_importances_to_file(feature_importances_pruned_cv, score_prune, task_type, 'Data/Importances/feature_importances_pruned_flag_{}.txt'.format(flag))
-        #pruned_new_df = pd.merge(pruned_new_df, df[['TimeFE_ID',  label.columns[0]]], on='TimeFE_ID', how='left') #was df old
-        #print("Pruned DataFrame:")
-        #print(pruned_new_df)
+        
         print("Kept Features:")
         print(kept_features)
         df_time.to_csv('Data/Importances/'+cols+'_'+ 'new_df_{}.csv'.format(flag), index=False) 
         pruned_df.to_csv('Data/Importances/pruned_df_{}.csv'.format(flag), index=False) 
-        #df_time.to_csv('Data/New_dfs/new_{}.csv'.format(csv_file_path), index=False)
-    # file_path = 'feature_importances_new.txt'
-
-    # with open(file_path, 'r') as file:
-    #     lines = file.readlines()
-    #     for line in lines[:10]:
-    #         print(line)
-
-    #new_file_path = 'feature_importances_new.txt'  # Path to the new feature importances file
-    #output_file = 'feature_importances_comparison.csv'  # Path to save the output CSV files
-
-    #calculate_improvements(new_file_path, output_file)
