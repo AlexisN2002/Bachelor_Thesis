@@ -101,29 +101,6 @@ def save_feature_importances_to_file(feature_importances, score, task_type, file
             file.write("Cross-validated feature importances before/after feature generation:\n")
             file.write(sorted_feature_importances.to_string())
 
-def cross_validated_feature_importances_old(df, label, n_jobs, params, task_type):
-    if task_type == 'regression':
-        gbm = lgb.LGBMRegressor(**params)
-    elif task_type == 'classification':
-        gbm = lgb.LGBMClassifier(**params)
-    elif task_type == 'RMSLE':
-        gbm = lgb.LGBMRegressor(**params)
-    
-    feature_importances = pd.DataFrame()
-    feature_importances['feature'] = df.columns
-    
-    kf = KFold(n_splits=10, shuffle=True, random_state=1)
-    for train_idx, val_idx in kf.split(df):
-        train_x, val_x = df.iloc[train_idx], df.iloc[val_idx]
-        train_y, val_y = label.iloc[train_idx], label.iloc[val_idx]
-        gbm.fit(train_x, train_y)
-        fold_importances = pd.DataFrame({'feature': df.columns, 'importance': gbm.feature_importances_})
-        feature_importances = feature_importances.merge(fold_importances, on='feature', how='left', suffixes=(None, '_fold'))
-    
-    feature_importances['importance'] = feature_importances.drop('feature', axis=1).mean(axis=1)
-    feature_importances = feature_importances[['feature', 'importance']]
-    return feature_importances 
-
 def cross_validated_scores(df_old, df_time, label, n_jobs, params, task_type):
     if task_type == 'regression':
         gbm = lgb.LGBMRegressor(**params)
@@ -215,16 +192,8 @@ def compare_dataframes(df1, df2):
 
 
 def run_last_stage(df_base, df_time_notpruned, flag, label_column, n_jobs, params, task_type, csv_file_path):
-    print(label_column)
-    import time
-    time.sleep(5)
-    if flag == 2:
-        id = 'id'
-    elif flag == 3:
-        id = 'TransactionID'
-    else:
-        df_base['TimeFE_ID'] = range(1, len(df_base) + 1)
-        id = 'TimeFE_ID'
+    df_base['TimeFE_ID'] = range(1, len(df_base) + 1)
+    id = 'TimeFE_ID'
 
     label = df_time_notpruned[[label_column]].copy()
     df_time_notpruned = df_time_notpruned.drop(columns=[label_column])
@@ -235,7 +204,6 @@ def run_last_stage(df_base, df_time_notpruned, flag, label_column, n_jobs, param
     
     feature_importances_final = cross_validated_feature_importances(df_final, label, n_jobs, params, task_type)
     df_intact = df_base.copy()
-    print(list(df_intact.columns))
 
     if label_column in df_base.columns: #new
         del df_base[label_column]
@@ -248,9 +216,8 @@ def run_last_stage(df_base, df_time_notpruned, flag, label_column, n_jobs, param
     results = "for flag{}: ".format(flag) + " final score " + str([score_final]) + " " + task_type + " " + csv_file_path[4:]
     save(results, "Endresults/{}.txt".format(csv_file_path[4:len(csv_file_path)-4]))
     save_feature_importances_to_file(feature_importances_final, score_final, task_type, "Endresults/end_importances{}.txt".format(csv_file_path[5:len(csv_file_path)-4]))
-    #
+    
     df_final['TimeFE_ID'] = range(1, len(df_final) + 1)
-    print(list(df_intact.columns))
     df_final = pd.merge(df_final, df_intact[[id,  label.columns[0]]], on=id, how='left', suffixes=('_new', '_old'))
     for col in df_final.columns:
         if col.endswith('_new'):
@@ -268,7 +235,7 @@ def run_last_stage(df_base, df_time_notpruned, flag, label_column, n_jobs, param
     df_final.to_csv('Endresults/df_final_{}.csv'.format(flag), index=False) 
 
 
-def run_experiment(flag, n_jobs):#, df_time_notpruned):
+def run_experiment(flag, n_jobs):
     results = ''
 
     print("### Processing CSV File {} ###".format(flag))
@@ -280,24 +247,24 @@ def run_experiment(flag, n_jobs):#, df_time_notpruned):
     if flag == 1: 
         csv_file_path = 'data/NYC-Taxi.csv'
         label_column = 'trip_duration'
-    elif flag == 2: #not working
+    elif flag == 2: 
         csv_file_path = 'data/NYC-BikeShare-2015-2017-combined.csv'
         label_column = 'Gender'
-    elif flag == 3: #not working, now working (:
+    elif flag == 3:
         csv_file_path = 'data/retail_sales_dataset.csv'
         label_column = 'Total_Amount'
     elif flag == 4:
         csv_file_path = 'data/NYCTraffic.csv' 
-        label_column = 'value' #own label
-    elif flag == 5: #not working
+        label_column = 'value' 
+    elif flag == 5: 
         csv_file_path = 'data/online_retail_II.csv'
-        label_column = 'Price' #own label lag_price
-    elif flag == 6:#not working
+        label_column = 'Price' 
+    elif flag == 6:
         csv_file_path = 'data/retail_opti.csv'
         label_column = 'lag_price'
     elif flag == 7:
         csv_file_path = 'data/TravelTrip.csv'
-        label_column = 'Traveler_gender' #own label 
+        label_column = 'Traveler_gender' 
     elif flag == 8:
         csv_file_path = 'data/ChicagoTaxi.csv'
         label_column = 'Fare'
@@ -305,11 +272,11 @@ def run_experiment(flag, n_jobs):#, df_time_notpruned):
         csv_file_path = csv_files[flag-1]
         df = pd.read_csv(csv_file_path)
         label_column = 'lag_price'
-    elif flag == 11: #rideschicago
+    elif flag == 11: 
         csv_file_path = csv_files[flag-1]
         df = pd.read_csv(csv_file_path) 
         label_column = 'fare_amount'
-    elif flag == 10: #yellowtaxi
+    elif flag == 10: 
         csv_file_path = csv_files[flag-1]
         df = pd.read_csv(csv_file_path)
         label_column = 'fare_amount'
@@ -324,7 +291,7 @@ def run_experiment(flag, n_jobs):#, df_time_notpruned):
         df = pd.read_csv(csv_file_path)
         label_column = 'weather'
         df['weather'] = le.fit_transform(df['weather'])
-    elif flag == 14: #not working
+    elif flag == 14: 
         csv_file_path = csv_files[flag-1]
         df = pd.read_csv(csv_file_path).dropna()
         df['HumidityAvgPercent'] = pd.to_numeric(df['HumidityAvgPercent'], errors='coerce')
@@ -356,7 +323,7 @@ def run_experiment(flag, n_jobs):#, df_time_notpruned):
     else:
         raise ValueError("Invalid flag value")
 
-    # Load and preprocess the dataframe
+    # Load and preprocess the dataframe 
     if flag <= 8:
         df = pd.read_csv(csv_file_path)
     if flag == 3:
@@ -396,7 +363,8 @@ def run_experiment(flag, n_jobs):#, df_time_notpruned):
     df_intact = clean_dataframe(df_intact)
 
     df_open = clean_dataframe(df_open).copy()
-    
+
+    # if you have outlier task types
     if flag == 2:
         task_type = 'RMSLE'
     else:
@@ -433,34 +401,9 @@ def rename_columns_except_label(df, label):
             return col
         else:
             return re.sub('[^A-Za-z0-9_]+', '', col)
-    
-    # Rename columns using the conditional renaming function
     df = df.rename(columns=rename_column).copy()
     return df
 
-# Entry point for the script
-
-
-def match_sampled_dfs(df1, df2, id_column, frac, random_state=None):
-    """
-    Sample df2 to match the rows in df1 based on the id_column.
-
-    Parameters:
-    df1 (pd.DataFrame): DataFrame that was previously sampled.
-    df2 (pd.DataFrame): Original DataFrame to be sampled.
-    id_column (str): Column name to match rows.
-    frac (float): Fraction of rows to sample.
-    random_state (int, optional): Random state for reproducibility.
-
-    Returns:
-    pd.DataFrame: Sampled DataFrame (df2) with the same rows as df1.
-    """
-    sampled_ids = df1[id_column].unique()
-    matched_df2 = df2[df2[id_column].isin(sampled_ids)].copy()
-    df1_sampled = df1.sample(frac=frac, random_state=1)
-    matched_df2_sampled = matched_df2.sample(frac=frac, random_state=1)
-    
-    return df1_sampled, matched_df2_sampled
 
 if __name__ == '__main__':
     n_jobs = 8  
