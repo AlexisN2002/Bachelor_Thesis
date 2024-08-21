@@ -424,114 +424,7 @@ def run_experiment(flag, n_jobs):#, df_time_notpruned):
 
     save_feature_importances_to_file(feature_importances_old_cv, score_old, task_type, "Baselines/base_importances{}.txt".format(csv_file_path[5:len(csv_file_path)-4]))
     save_feature_importances_to_file(feature_importances_time_cv, score_time, task_type, "Baselines/openfe_importances{}.txt".format(csv_file_path[5:len(csv_file_path)-4]))
-    '''
-    label = df_time_notpruned[[label_column]]
-    df_time_notpruned = df_time_notpruned.drop(columns=[label_column]).copy()
-    score_notpruned = cross_validated_single(df_time_notpruned, label, n_jobs, params, task_type)
-    feature_importances_notpruned_cv = cross_validated_feature_importances(df_time_notpruned.copy(), label, n_jobs, params, task_type)
-    save_feature_importances_to_file(feature_importances_notpruned_cv, score_notpruned, task_type, "Baselines/not_pruned_importance{}.txt".format(csv_file_path[5:len(csv_file_path)-4]))
-    '''
-    #df_time_notpruned = df_time_notpruned.sample(frac=0.3, random_state=1).dropna()
-    #df_intact = df_intact.sample(frac=0.3, random_state=1).dropna()
-    #run_last_stage(df_intact, df_time_notpruned, flag, label_column, n_jobs, params, task_type, csv_file_path)
 
-'''
-def run_last_stage(df_base, df_time_notpruned, flag, label_column, n_jobs, params, task_type, csv_file_path):
-    print(f"Running last stage with label column: {label_column}")
-    
-    # Check if the label column exists in df_time_notpruned
-    if label_column not in df_time_notpruned.columns:
-        raise ValueError(f"Label column '{label_column}' not found in df_time_notpruned")
-
-    label = df_time_notpruned[[label_column]].copy()  # Ensure label is a DataFrame
-    df_time_notpruned = df_time_notpruned.drop(columns=[label_column])
-    
-    ofe = OpenFE()
-    ofe.fit(data=df_time_notpruned, label=label, n_jobs=n_jobs)
-    
-    test_x = df_time_notpruned.copy()
-    df_final, test_x = transform(df_time_notpruned, test_x, ofe.new_features_list[:10], n_jobs=n_jobs)
-    
-    feature_importances_final = cross_validated_feature_importances(df_final, label, n_jobs, params, task_type)
-    df_final, kept_features = prune(df_base, df_final, feature_importances_final, 15)
-    score_final = cross_validated_single(df_final, label, n_jobs, params, task_type)
-    
-    results = f"for flag{flag}: final score {score_final} {task_type} {csv_file_path[4:]}"
-    save(results, f"Endresults/{csv_file_path[4:-4]}.txt")
-    save(feature_importances_final, f"Endresults/end_importances{csv_file_path[4:-4]}.txt")
-
-def run_experiment(flag, n_jobs, df_time_notpruned):
-    results = ''
-    print(f"### Processing CSV File {flag} ###")
-    
-    label_column = ''
-    csv_file_path = ''
-    
-    if flag == 1: 
-        csv_file_path = 'data/NYC-Taxi.csv'
-        label_column = 'trip_duration'
-    elif flag == 2:
-        csv_file_path = 'data/NYC-BikeShare-2015-2017-combined.csv'
-        label_column = 'Gender'
-    elif flag == 3:
-        csv_file_path = 'data/retail_sales_dataset.csv'
-        label_column = 'Total_Amount'
-    elif flag == 4:
-        csv_file_path = 'data/NYCTraffic.csv' 
-        label_column = 'value'
-    elif flag == 5:
-        csv_file_path = 'data/online_retail_II.csv'
-        label_column = 'Price'
-    elif flag == 6:
-        csv_file_path = 'data/retail_opti.csv'
-        label_column = 'lag_price'
-    elif flag == 7:
-        csv_file_path = 'data/TravelTrip.csv'
-        label_column = 'Traveler_gender'
-    elif flag == 8:
-        csv_file_path = 'data/ChicagoTaxi.csv'
-        label_column = 'Fare'
-    else:
-        raise ValueError("Invalid flag value")
-
-    # Load and preprocess the dataframe
-    df = pd.read_csv(csv_file_path)
-    df = df.sample(frac=0.02, random_state=1).dropna()
-    df = df.rename(columns=lambda x: re.sub('[^A-Za-z0-9_]+', '', x))
-
-    # Check if label_column exists in the DataFrame
-    if label_column not in df.columns:
-        raise ValueError(f"Label column '{label_column}' not found in the dataset loaded from {csv_file_path}")
-
-    # Create data and label
-    label = df[[label_column]].copy()
-    data = df.drop(columns=[label_column])
-    
-    ofe = OpenFE()
-    start_ofe = time.time()
-    ofe.fit(data=data, label=label, n_jobs=n_jobs)
-    test_x = df.copy()
-    df_open, test_x = transform(df, test_x, ofe.new_features_list[:10], n_jobs=n_jobs)
-    end_ofe = time.time()
-    overhead = end_ofe - start_ofe
-
-    df_old = df.drop(columns=[label_column]).copy()
-    df_intact = df.copy()
-    df_old = clean_dataframe(df_old)
-    df_intact = clean_dataframe(df_intact)
-    df_open = clean_dataframe(df_open)
-    
-    task_type = 'classification' if label.nunique().values[0] == 2 else 'regression'
-    
-    params = {'n_estimators': 1000, 'n_jobs': n_jobs, 'random_state': 1, 'verbose': 1}
-    
-    feature_importances_old_cv = cross_validated_feature_importances(df_old, label, n_jobs, params, task_type)
-    feature_importances_time_cv = cross_validated_feature_importances(df_open, label, n_jobs, params, task_type)
-    score_old, score_time = cross_validated_scores(df_old, df_open, label, n_jobs, params, task_type)
-    
-    print(f"Columns in df_time_notpruned before run_last_stage: {df_time_notpruned.columns.tolist()}")
-    run_last_stage(df_intact, df_time_notpruned, flag, label_column, n_jobs, params, task_type, csv_file_path)
-'''
 
 def rename_columns_except_label(df, label):
     # Define the renaming function with a conditional check for the label
@@ -605,7 +498,6 @@ if __name__ == '__main__':
         import time
         time.sleep(2)
         csv_file_path = csv_files[flag-1]
-        #if flag > 16:
         run_experiment(flag, 8)
         label_column = label_columns[flag-1]
         df = pd.read_csv(csv_file_path)
