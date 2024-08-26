@@ -15,21 +15,3 @@ Explanation: In this script, your newly generated (unpruned) DataFrame will be f
 
 Usage: Edit the main function as before by inserting your list of CSV files and their corresponding label columns. Also, update the run_experiment function with your own CSV files and labels. You will be provided with the datasets and .txt files containing the scores and importances. Be sure to update the file paths if necessary.
 
-
-
-
-
-
-
-
-//To apply TimeFE to your dataset, run your training data through "df_time = TimeRelatedFe(data)" in TimeRelatedFE.py
-
-//If you want to prune it, run 
-//data['TimeFE_ID'] = range(1, len(data) + 1)
-//df_time = TimeRelatedFe(data)
-//df_time = clean_dataframe(df_time)
-//feature_importances_time_cv = cross_validated_feature_importances(df_time.copy(), label, n_jobs, params, task_type)
-
-//(set features_I_want_to_keep to how many top n generated features you want to keep)
-
-//pruned_new_df, kept_features = prune(df_old.copy(), df_time, feature_importances_time_cv, features_I_want_to_keep)
